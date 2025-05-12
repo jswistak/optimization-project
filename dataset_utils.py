@@ -1,11 +1,13 @@
 from typing import Tuple
+import pandas as pd
 from sklearn.datasets import make_friedman1
 import numpy as np
+from ucimlrepo import fetch_ucirepo
 
 def generate_friedman1_dataset(
-    n_samples: int = 1000,
+    n_samples: int = 200,
     n_features: int = 10,
-    n_noise_features: int = 990,
+    n_noise_features: int = 190,
     noise: float = 1.0,
     random_state: int = 0
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -39,3 +41,41 @@ def generate_friedman1_dataset(
     
     return X, y
 
+def load_ucirepo_dataset(
+    dataset_id: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load a dataset from the UCI repository using ucirepo.fetch_ucirepo,
+    returning the feature array X and target array y.
+
+    Args:
+        dataset_id (str): Name or ID of the UCI dataset.
+
+    Returns:
+        X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+        y (np.ndarray): Target vector of shape (n_samples,).
+    """
+    # Fetch the dataset as arrays
+    ds = fetch_ucirepo(id = dataset_id)
+    X = ds.data.features.to_numpy()
+    y = ds.data.targets.to_numpy().ravel()
+
+    # Standarize X to zero mean and unit variance
+    means = X.mean(axis=0)
+    stds  = X.std(axis=0, ddof=0)
+    #    avoid divide-by-zero
+    stds[stds == 0] = 1.0
+    #    center & scale
+    X = (X - means) / stds
+    
+    # Ensure it's a binary classification problem
+    classes = np.unique(y)
+    if classes.size != 2:
+        raise ValueError(
+            f"2 classes in target expected, but found {classes.size}: {classes}"
+        )
+
+    # Map the first class → -1, the second → +1
+    y = np.where(y == classes[0], -1, 1)
+
+    return X, y
