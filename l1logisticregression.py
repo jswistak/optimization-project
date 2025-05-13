@@ -4,7 +4,8 @@ import pandas as pd
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-    
+
+
 class L1LogisticRegression:
     def __init__(self, C: int = 100, method: str = "L-BFGS-B"):
         self.C = C
@@ -28,26 +29,26 @@ class L1LogisticRegression:
         x = x_plus - x_minus
         z = y * (X.dot(x))
         log_terms = np.logaddexp(0, -z)
-       # log_terms = np.log1p(np.exp(-z))
+        # log_terms = np.log1p(np.exp(-z))
         obj = self.C * np.sum(log_terms) + np.sum(u)
         self.logloss_history.append(log_terms)
         self.loss_history.append(obj)
 
-        return obj 
+        return obj
 
     def fit(self, X, y):
         X = np.asarray(X, float)
         y = np.asarray(y, float)
         n_features = X.shape[1]
         u0 = np.zeros(2 * n_features)
-        bounds = [(0, None)] * (2 * n_features) 
+        bounds = [(0, None)] * (2 * n_features)
 
         def func(u):
             return self._objective(u, X, y)
 
         res = minimize(func, u0, bounds=bounds, method=self.method)
 
-        #if not res.success:
+        # if not res.success:
         #    raise RuntimeError(f"Optimization process failed: {res.message}")
 
         u_opt = res.x
