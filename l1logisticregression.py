@@ -8,13 +8,23 @@ from sklearn.metrics import accuracy_score
 
 class L1LogisticRegression:
     def __init__(self, C: int = 100, method: str = "L-BFGS-B"):
+        """
+        Initializes the L1LogisticRegression model.
+
+        Args:
+            C (int, optional): Inverse of regularization strength; must be a positive float.
+            Smaller values specify stronger regularization. Defaults to 100.
+            method (str, optional): Optimization algorithm.
+            For L1 regularization, 'L-BFGS-B' is typically preferred. Defaults to "L-BFGS-B".
+        """
         self.C = C
         self.method = method
         self.coef_ = None
         self.loss_history = []
         self.logloss_history = []
 
-    def _reparametrization(self, X):
+    @staticmethod
+    def _reparametrization(X):
         X = np.asarray(X)
         X_plus = np.maximum(X, 0)
         X_minus = np.maximum(-X, 0)
@@ -22,7 +32,7 @@ class L1LogisticRegression:
         return X_plus, X_minus
 
     def _objective(self, u, X, y):
-        X_plus, _ = self._reparametrization(X)
+        X_plus, _ = L1LogisticRegression._reparametrization(X)
         n = X_plus.shape[1]
         x_plus = u[:n]
         x_minus = u[n:]
@@ -37,6 +47,16 @@ class L1LogisticRegression:
         return obj
 
     def fit(self, X, y):
+        """
+        Fit the L1-regularized logistic regression model.
+
+        Args:
+            X (array-like of shape (n_samples, n_features)): Training data.
+            y (array-like of shape (n_samples,)): Target values.
+
+        Returns:
+            self: The fitted model.
+        """
         X = np.asarray(X, float)
         y = np.asarray(y, float)
         n_features = X.shape[1]
@@ -58,11 +78,39 @@ class L1LogisticRegression:
         return self
 
     def predict_proba(self, X):
+        """
+        Predict probability estimates for the test data X.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Test data.
+
+        Returns
+        -------
+        T : array-like of shape (n_samples, 2)
+            Returns the probability of the sample for each class in the model,
+            The columns correspond to the classes in sorted order, as they
+            appear in the attribute `classes_`.
+        """
         X = np.asarray(X, dtype=float)
         scores = X.dot(self.coef_)
         probs = 1 / (1 + np.exp(-scores))
         return np.vstack([1 - probs, probs]).T
 
     def predict(self, X):
+        """
+        Predict class labels for samples in X.
+
+        Parameters
+        ----------
+        X : array_like or sparse matrix, shape (n_samples, n_features)
+            Samples.
+
+        Returns
+        -------
+        C : array, shape (n_samples,)
+            Predicted class label per sample.
+        """
         X = np.asarray(X, dtype=float)
         return np.where(X.dot(self.coef_) >= 0, 1, -1)
