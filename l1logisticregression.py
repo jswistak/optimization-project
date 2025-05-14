@@ -31,7 +31,44 @@ class L1LogisticRegression:
 
         return X_plus, X_minus
 
+    def _objective_and_grad(self, u, X, y):
+        """
+        Returns (objective, gradient) for LBFGS-B in the
+        (x⁺, x⁻) ≥ 0 re-parametrisation.
+        """
+        n = X.shape[1]
+        x_plus, x_minus = u[:n], u[n:]
+        x = x_plus - x_minus
+
+        # forward pass
+        z = y * (X @ x)
+        log_terms = np.logaddexp(0.0, -z)
+        obj = self.C * np.sum(log_terms) + np.sum(u)
+
+        g_w = self.C * (X.T @ (-y / (1.0 + np.exp(z))))
+
+        grad = np.concatenate([g_w + 1.0, -g_w + 1.0])
+        return obj, grad
+
     def _objective(self, u, X, y):
+        """
+        Calculates the objective function for L1-regularized logistic regression.
+
+        The objective function consists of the logistic loss and the L1 regularization term.
+        The logistic loss is computed using log-sum-exp trick for numerical stability.
+        The L1 regularization is the sum of absolute values of the coefficients,
+        which is implemented by reparametrizing each coefficient x as the difference
+        of two non-negative variables x_plus and x_minus, i.e., x = x_plus - x_minus,
+        and penalizing the sum of x_plus and x_minus.
+
+        Args:
+            u (np.ndarray): A numpy array containing the concatenated x_plus and x_minus variables.
+            X (np.ndarray): The feature matrix.
+            y (np.ndarray): The target vector.
+
+        Returns:
+            float: The value of the objective function.
+        """
         X_plus, _ = L1LogisticRegression._reparametrization(X)
         n = X_plus.shape[1]
         x_plus = u[:n]
@@ -63,10 +100,13 @@ class L1LogisticRegression:
         u0 = np.zeros(2 * n_features)
         bounds = [(0, None)] * (2 * n_features)
 
-        def func(u):
-            return self._objective(u, X, y)
-
-        res = minimize(func, u0, bounds=bounds, method=self.method)
+        res = minimize(
+            fun=lambda u: self._objective_and_grad(u, X, y),
+            x0=u0,
+            method=self.method,
+            jac=True,
+            bounds=bounds,
+        )
 
         # if not res.success:
         #    raise RuntimeError(f"Optimization process failed: {res.message}")
