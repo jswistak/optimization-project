@@ -4,12 +4,13 @@ from sklearn.datasets import make_friedman1
 import numpy as np
 from ucimlrepo import fetch_ucirepo
 
+
 def generate_friedman1_dataset(
     n_samples: int = 200,
     n_features: int = 10,
     n_noise_features: int = 190,
     noise: float = 1.0,
-    random_state: int = 0
+    random_state: int = 0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generate a synthetic regression dataset based on the Friedman #1 function.
@@ -33,17 +34,16 @@ def generate_friedman1_dataset(
         n_samples=n_samples,
         n_features=n_features,
         noise=noise,
-        random_state=random_state
+        random_state=random_state,
     )
 
     # To stress-test at higher dims, append n noise features:
     X = np.hstack([X, np.random.rand(X.shape[0], n_noise_features)])
-    
+
     return X, y
 
-def load_ucirepo_dataset(
-    dataset_id: int
-) -> Tuple[np.ndarray, np.ndarray]:
+
+def load_ucirepo_dataset(dataset_id: int) -> Tuple[np.ndarray, np.ndarray]:
     """
     Load a dataset from the UCI repository using ucirepo.fetch_ucirepo,
     returning the feature array X and target array y.
@@ -56,18 +56,18 @@ def load_ucirepo_dataset(
         y (np.ndarray): Target vector of shape (n_samples,).
     """
     # Fetch the dataset as arrays
-    ds = fetch_ucirepo(id = dataset_id)
+    ds = fetch_ucirepo(id=dataset_id)
     X = ds.data.features.to_numpy()
     y = ds.data.targets.to_numpy().ravel()
 
     # Standarize X to zero mean and unit variance
     means = X.mean(axis=0)
-    stds  = X.std(axis=0, ddof=0)
+    stds = X.std(axis=0, ddof=0)
     #    avoid divide-by-zero
     stds[stds == 0] = 1.0
     #    center & scale
     X = (X - means) / stds
-    
+
     # Ensure it's a binary classification problem
     classes = np.unique(y)
     if classes.size != 2:
@@ -77,5 +77,54 @@ def load_ucirepo_dataset(
 
     # Map the first class → -1, the second → +1
     y = np.where(y == classes[0], -1, 1)
+
+    return X, y
+
+
+def syntetic_dataset_generation(
+    p: float, n: int, d: int, g: float
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Generate a synthetic dataset as specified.
+
+    The function generates a binary target variable y from a Bernoulli distribution with class prior probability p.
+    The feature matrix X is generated such that:
+      - For y = 0, X follows a d-dimensional multivariate normal with mean vector of zeros and covariance matrix S,
+        where S[i, j] = g^|i-j|.
+      - For y = 1, X follows a d-dimensional multivariate normal with mean vector (1, 1/2, 1/3, ..., 1/d) and the
+        same covariance structure as for y = 0.
+
+    Args:
+        p (float): Class prior probability.
+        n (int): Total number of samples to generate.
+        d (int): Dimensionality of the feature vectors.
+        g (float): Covariance matrix parameter (defines correlation structure).
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]:
+            - X: An (n x d) array of feature vectors.
+            - y: A 1D array of length n containing binary class labels.
+    """
+    # Generate binary class variable from a Bernoulli distribution.
+    y = np.random.binomial(1, p, n)
+
+    # Mean vectors for the two classes.
+    mean_0 = np.zeros(d)
+    mean_1 = np.array([1 / (i + 1) for i in range(d)])
+
+    # Build covariance matrix S with S[i, j] = g^|i - j|
+    cov = np.zeros((d, d))
+    for i in range(d):
+        for j in range(d):
+            cov[i, j] = g ** abs(i - j)
+
+    # Initialize feature matrix X.
+    X = np.zeros((n, d))
+    mask_0 = y == 0
+    mask_1 = y == 1
+
+    # Generate feature vectors for each class.
+    X[mask_0] = np.random.multivariate_normal(mean_0, cov, mask_0.sum())
+    X[mask_1] = np.random.multivariate_normal(mean_1, cov, mask_1.sum())
 
     return X, y
