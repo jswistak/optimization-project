@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from scipy.special import expit
 
 
 class L1LogisticRegression:
@@ -22,7 +23,9 @@ class L1LogisticRegression:
         self.coef_ = None
         self.loss_history = []
         self.logloss_history = []
-
+        self.fraction_zero_plus_ = None
+        self.fraction_zero_minus_ = None
+        
     @staticmethod
     def _reparametrization(X):
         X = np.asarray(X)
@@ -31,6 +34,39 @@ class L1LogisticRegression:
 
         return X_plus, X_minus
 
+    def make_hessp(self, X: np.ndarray, y: np.ndarray, C: float):
+        """
+        Returns a hessp(u, v) function that computes H(u) @ v
+        for the L1-logistic objective under u=(x⁺,x⁻) reparametrisation.
+        """
+        n_samples, n_features = X.shape
+
+        def hessp(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+            # split u and v into their plus/minus parts
+            u_plus, u_minus = u[:n_features], u[n_features:]
+            v_plus, v_minus = v[:n_features], v[n_features:]
+
+            # reconstruct w = x⁺ – x⁻ and the search direction Δw = v⁺ – v⁻
+            w = u_plus - u_minus
+            delta_w = v_plus - v_minus
+
+            # compute z = y * (X @ w)
+            z = y * (X @ w)
+
+            # D = σ(z) * (1 – σ(z)), with σ=expit, in a numerically stable way
+            σ = expit(z)
+            D = σ * (1.0 - σ)       # shape: (n_samples,)
+
+            # Hessian-vector product in w-space: H_w · Δw = C·Xᵀ [D * (X·Δw)]
+            Xd = X @ delta_w       # (n_samples,)
+            Dx = D * Xd            # (n_samples,)
+            H_w_delta = C * (X.T @ Dx)  # (n_features,)
+
+            # convert back to u-space: [ H_w·Δw ; –H_w·Δw ]
+            return np.concatenate([H_w_delta, -H_w_delta])
+
+        return hessp
+    
     def _objective_and_grad(self, u, X, y):
         """
         Returns (objective, gradient) for LBFGS-B in the
@@ -44,8 +80,12 @@ class L1LogisticRegression:
         z = y * (X @ x)
         log_terms = np.logaddexp(0.0, -z)
         obj = self.C * np.sum(log_terms) + np.sum(u)
+        self.logloss_history.append(log_terms)
+        self.loss_history.append(obj)
 
-        g_w = self.C * (X.T @ (-y / (1.0 + np.exp(z))))
+        sigma_neg = expit(-z)         # = 1 / (1 + exp(z)), but done safely
+        g_w = self.C * (X.T @ (-y * sigma_neg))
+        # g_w = self.C * (X.T @ (-y / (1.0 + np.exp(z))))
 
         grad = np.concatenate([g_w + 1.0, -g_w + 1.0])
         return obj, grad
@@ -99,12 +139,14 @@ class L1LogisticRegression:
         n_features = X.shape[1]
         u0 = np.zeros(2 * n_features)
         bounds = [(0, None)] * (2 * n_features)
+        hessp = self.make_hessp(X, y, self.C)
 
         res = minimize(
             fun=lambda u: self._objective_and_grad(u, X, y),
             x0=u0,
             method=self.method,
             jac=True,
+            hessp=hessp,
             bounds=bounds,
         )
 
@@ -115,6 +157,9 @@ class L1LogisticRegression:
         x_plus_opt = u_opt[:n_features]
         x_minus_opt = u_opt[n_features:]
         self.coef_ = x_plus_opt - x_minus_opt
+        self.fraction_zero_plus_ = float(np.mean(x_plus_opt == 0))
+        self.fraction_zero_minus_ = float(np.mean(x_minus_opt == 0))
+
         return self
 
     def predict_proba(self, X):
