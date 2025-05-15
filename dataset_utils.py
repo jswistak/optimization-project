@@ -1,6 +1,6 @@
 from typing import Tuple
 import pandas as pd
-from sklearn.datasets import make_friedman1
+from sklearn.datasets import make_friedman1, make_classification
 import numpy as np
 from ucimlrepo import fetch_ucirepo
 
@@ -127,4 +127,34 @@ def syntetic_dataset_generation(
     X[mask_0] = np.random.multivariate_normal(mean_0, cov, mask_0.sum())
     X[mask_1] = np.random.multivariate_normal(mean_1, cov, mask_1.sum())
 
+    return X, y
+
+def generate_high_dim_classification(
+    n_samples: int = 500,
+    n_features: int = 1000,
+    n_informative: int = 600,
+    n_redundant: int = 0,
+    n_repeated: int = 0,
+    n_classes: int = 2,
+    class_sep: float = 1.0,
+    flip_y: float = 0.01,
+    random_state: int = 0
+):
+    """
+    Generate a high-dimensional binary classification problem.
+
+    Returns:
+        X_train, X_test, y_train, y_test
+    """
+    X, y = make_classification(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_informative=n_informative,
+        n_redundant=n_redundant,
+        n_repeated=n_repeated,
+        n_classes=n_classes,
+        class_sep=class_sep,
+        flip_y=flip_y,
+        random_state=random_state
+    )
     return X, y
