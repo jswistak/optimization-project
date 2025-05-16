@@ -8,7 +8,9 @@ from scipy.special import expit
 
 
 class L1LogisticRegression:
-    def __init__(self, C: int = 100, method: str = "L-BFGS-B"):
+    def __init__(
+        self, C: int = 100, method: str = "L-BFGS-B", lbfgs_m: int | None = None
+    ):
         """
         Initializes the L1LogisticRegression model.
 
@@ -17,6 +19,7 @@ class L1LogisticRegression:
             Smaller values specify stronger regularization. Defaults to 100.
             method (str, optional): Optimization algorithm.
             For L1 regularization, 'L-BFGS-B' is typically preferred. Defaults to "L-BFGS-B".
+            lbfgs_m (int, optional): Number of corrections to approximate the inverse Hessian.
         """
         self.C = C
         self.method = method
@@ -25,6 +28,7 @@ class L1LogisticRegression:
         self.logloss_history = []
         self.fraction_zero_plus_ = None
         self.fraction_zero_minus_ = None
+        self.lbfgs_m = lbfgs_m
 
     @staticmethod
     def _reparametrization(X):
@@ -141,6 +145,10 @@ class L1LogisticRegression:
         bounds = [(0, None)] * (2 * n_features)
         hessp = self.make_hessp(X, y, self.C)
 
+        # build args for minimize fuction
+        if self.lbfgs_m is not None:
+            args = {"maxcor": self.lbfgs_m}
+
         res = minimize(
             fun=lambda u: self._objective_and_grad(u, X, y),
             x0=u0,
@@ -148,6 +156,7 @@ class L1LogisticRegression:
             jac=True,
             hessp=hessp,
             bounds=bounds,
+            options=args,
         )
 
         # if not res.success:
