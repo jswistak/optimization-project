@@ -3,6 +3,75 @@ import pandas as pd
 from sklearn.datasets import make_friedman1, make_classification
 import numpy as np
 from ucimlrepo import fetch_ucirepo
+import numpy as np
+from scipy import sparse
+from sklearn.utils import check_random_state
+from typing import Tuple, Union
+
+
+def generate_large_synthetic_dataset(
+    n_samples: int = 100_000,
+    n_features: int = 20_000,
+    informative_fraction: float = 0.2,
+    class_prior: float = 0.5,
+    mean_shift: float = 2.0,
+    noise_std: float = 1.0,
+    density: float = 0.05,
+    return_sparse: bool = True,
+    random_state: Union[int, np.random.RandomState, None] = None,
+) -> Tuple[Union[np.ndarray, sparse.csr_matrix], np.ndarray]:
+    """
+    Create a *very* high-dimensional binary-classification dataset suitable for the
+    “large-d check-C” experiments (point 4).
+
+    Data model
+    ----------
+    • y ∼ Bernoulli(class_prior)
+    • X | y = 0  ∼ 𝒩(0, I)
+    • X | y = 1  ∼ 𝒩(μ, I) with μ_j = mean_shift for j in informative set
+    • After drawing dense Gaussian samples, we randomly zero-out entries so that
+      the final feature matrix has the requested *density* (≈ fraction non-zero).
+
+    Parameters
+    ----------
+    n_samples          total observations (rows)
+    n_features         dimensionality d
+    informative_fraction
+                       fraction of features that carry a mean shift
+    class_prior        P(y = 1)
+    mean_shift         magnitude of the signal in informative coords
+    noise_std          σ of the Gaussian noise
+    density            final non-zero ratio (0 < density ≤ 1)
+    return_sparse      if True → CSR matrix; else dense ndarray
+    random_state       int or `np.random.RandomState`
+
+    Returns
+    -------
+    X   shape (n_samples, n_features); CSR or ndarray
+    y   shape (n_samples,), values in {-1, +1}
+    """
+    rng = check_random_state(random_state)
+
+    y = rng.binomial(1, class_prior, n_samples)
+    y = 2 * y - 1
+
+    n_informative = int(np.round(informative_fraction * n_features))
+    informative_idx = rng.choice(n_features, n_informative, replace=False)
+
+    X = rng.normal(loc=0.0, scale=noise_std, size=(n_samples, n_features))
+
+    pos_mask = y == 1
+    X[np.ix_(pos_mask, informative_idx)] += mean_shift
+
+    if density < 1.0:
+        # keep each entry with probability = density
+        keep = rng.uniform(size=X.shape) < density
+        X = np.where(keep, X, 0.0)
+
+    if return_sparse:
+        X = sparse.csr_matrix(X, dtype=np.float32)
+
+    return X, y
 
 
 def generate_friedman1_dataset(
@@ -129,6 +198,7 @@ def syntetic_dataset_generation(
 
     return X, y
 
+
 def generate_high_dim_classification(
     n_samples: int = 500,
     n_features: int = 1000,
@@ -138,7 +208,7 @@ def generate_high_dim_classification(
     n_classes: int = 2,
     class_sep: float = 1.0,
     flip_y: float = 0.01,
-    random_state: int = 0
+    random_state: int = 0,
 ):
     """
     Generate a high-dimensional binary classification problem.
@@ -155,6 +225,6 @@ def generate_high_dim_classification(
         n_classes=n_classes,
         class_sep=class_sep,
         flip_y=flip_y,
-        random_state=random_state
+        random_state=random_state,
     )
     return X, y
