@@ -25,7 +25,7 @@ class L1LogisticRegression:
         self.logloss_history = []
         self.fraction_zero_plus_ = None
         self.fraction_zero_minus_ = None
-        
+
     @staticmethod
     def _reparametrization(X):
         X = np.asarray(X)
@@ -54,19 +54,19 @@ class L1LogisticRegression:
             z = y * (X @ w)
 
             # D = σ(z) * (1 – σ(z)), with σ=expit, in a numerically stable way
-            σ = expit(z)
-            D = σ * (1.0 - σ)       # shape: (n_samples,)
+            sigma = expit(z)
+            D = sigma * (1.0 - sigma)  # shape: (n_samples,)
 
             # Hessian-vector product in w-space: H_w · Δw = C·Xᵀ [D * (X·Δw)]
-            Xd = X @ delta_w       # (n_samples,)
-            Dx = D * Xd            # (n_samples,)
+            Xd = X @ delta_w  # (n_samples,)
+            Dx = D * Xd  # (n_samples,)
             H_w_delta = C * (X.T @ Dx)  # (n_features,)
 
             # convert back to u-space: [ H_w·Δw ; –H_w·Δw ]
             return np.concatenate([H_w_delta, -H_w_delta])
 
         return hessp
-    
+
     def _objective_and_grad(self, u, X, y):
         """
         Returns (objective, gradient) for LBFGS-B in the
@@ -83,7 +83,7 @@ class L1LogisticRegression:
         self.logloss_history.append(log_terms)
         self.loss_history.append(obj)
 
-        sigma_neg = expit(-z)         # = 1 / (1 + exp(z)), but done safely
+        sigma_neg = expit(-z)  # = 1 / (1 + exp(z)), but done safely
         g_w = self.C * (X.T @ (-y * sigma_neg))
         # g_w = self.C * (X.T @ (-y / (1.0 + np.exp(z))))
 
